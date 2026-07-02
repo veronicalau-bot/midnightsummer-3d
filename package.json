@@ -1,0 +1,21 @@
+{
+  "name": "midsummer-night-3d",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-basic-ssl": "^2.3.0",
+    "typescript": "~6.0.2",
+    "vite": "^8.1.1"
+  },
+  "dependencies": {
+    "@babylonjs/core": "^9.14.0",
+    "@babylonjs/gui": "^9.14.0",
+    "@babylonjs/loaders": "^9.14.0"
+  }
+}
