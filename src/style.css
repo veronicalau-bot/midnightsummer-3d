@@ -178,6 +178,107 @@ h1 {
   backdrop-filter: blur(4px);
 }
 
+.character-palette {
+  position: absolute;
+  right: 0.85rem;
+  top: 3.95rem;
+  width: 15.4rem;
+  max-height: calc(100svh - 6rem);
+  overflow: auto;
+  border: 1px solid rgba(138, 211, 255, 0.24);
+  border-radius: 14px;
+  background: rgba(6, 16, 24, 0.62);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
+  padding: 0.62rem;
+  z-index: 3;
+}
+
+.palette-title {
+  margin: 0;
+  color: #e8cd88;
+  font-size: 0.74rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.character-grid {
+  margin-top: 0.52rem;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.character-chip {
+  border: 1px solid rgba(246, 184, 77, 0.34);
+  background: rgba(8, 23, 35, 0.76);
+  color: #e6eef4;
+  border-radius: 9px;
+  padding: 0.42rem 0.2rem;
+  font-weight: 700;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+
+.character-chip:hover {
+  border-color: rgba(246, 184, 77, 0.82);
+}
+
+.character-chip:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.character-tools {
+  margin-top: 0.58rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.action.mini {
+  padding: 0.46rem 0.42rem;
+  font-size: 0.74rem;
+  min-height: 2rem;
+}
+
+.action.wide {
+  margin-top: 0.4rem;
+  width: 100%;
+}
+
+.gizmo-modes {
+  margin-top: 0.4rem;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.3rem;
+}
+
+.gizmo-btn {
+  padding: 0.38rem 0.24rem;
+  font-size: 0.66rem;
+}
+
+.gizmo-btn.active {
+  border-color: rgba(246, 184, 77, 0.95);
+  background: rgba(246, 184, 77, 0.2);
+  color: #ffe9be;
+}
+
+.palette-info {
+  margin: 0.58rem 0 0;
+  color: #d9e6f5;
+  font-size: 0.76rem;
+}
+
+.palette-tip {
+  margin: 0.32rem 0 0;
+  color: #b3c6d2;
+  font-size: 0.68rem;
+  line-height: 1.25;
+}
+
 @media (max-width: 900px) {
   .hud {
     top: 0.65rem;
@@ -202,6 +303,12 @@ h1 {
   .status {
     right: 0.65rem;
     bottom: 0.65rem;
+  }
+
+  .character-palette {
+    right: 0.65rem;
+    top: 3.45rem;
+    width: 14rem;
   }
 }
 
@@ -245,5 +352,41 @@ h1 {
     right: 0.5rem;
     bottom: 0.5rem;
     text-align: center;
+  }
+
+  .character-palette {
+    right: 0.5rem;
+    left: auto;
+    top: 3.3rem;
+    width: 11.25rem;
+    padding: 0.5rem;
+  }
+
+  .character-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.32rem;
+  }
+
+  .character-chip {
+    font-size: 0.64rem;
+    padding: 0.34rem 0.16rem;
+  }
+
+  .character-tools {
+    gap: 0.3rem;
+  }
+
+  .gizmo-modes {
+    gap: 0.25rem;
+  }
+
+  .gizmo-btn {
+    font-size: 0.58rem;
+    padding: 0.34rem 0.1rem;
+  }
+
+  .action.mini {
+    font-size: 0.66rem;
+    padding: 0.38rem 0.2rem;
   }
 }
