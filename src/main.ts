@@ -43,6 +43,14 @@ app.innerHTML = `
 <div class="viewport-shell">
   <canvas id="render-canvas" aria-label="3D immersive scene viewer"></canvas>
 
+  <div id="loading-screen" class="loading-screen hidden" aria-live="polite" aria-label="Loading">
+    <p id="loading-text" class="loading-text">Loading...</p>
+    <div class="loading-bars" role="presentation">
+      <span></span><span></span><span></span><span></span><span></span>
+      <span></span><span></span><span></span><span></span><span></span>
+    </div>
+  </div>
+
   <aside class="scene-rail" aria-label="Scene Selector">
     <div class="scene-strip">${sceneButtons}</div>
   </aside>
@@ -102,6 +110,8 @@ const gizmoRotateButton = document.querySelector<HTMLButtonElement>('#gizmo-rota
 const gizmoScaleButton = document.querySelector<HTMLButtonElement>('#gizmo-scale')
 const characterLabel = document.querySelector<HTMLParagraphElement>('#character-selected')
 const characterTip = document.querySelector<HTMLParagraphElement>('#character-tip')
+const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')
+const loadingText = document.querySelector<HTMLParagraphElement>('#loading-text')
 const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('.scene-chip'))
 const characterChips = Array.from(document.querySelectorAll<HTMLButtonElement>('.character-chip'))
 
@@ -122,7 +132,9 @@ if (
   !gizmoRotateButton ||
   !gizmoScaleButton ||
   !characterLabel ||
-  !characterTip
+  !characterTip ||
+  !loadingScreen ||
+  !loadingText
 ) {
   throw new Error('UI initialization failed.')
 }
@@ -177,6 +189,22 @@ let selectedCharacterInstanceId: string | null = null
 let draggingCharacterInstanceId: string | null = null
 let dragMode: DragMode = 'ground'
 let gizmoMode: GizmoMode = 'off'
+let loadingLockCount = 0
+
+const beginLoading = (message: string): void => {
+  loadingLockCount += 1
+  loadingText.textContent = message
+  loadingScreen.classList.remove('hidden')
+}
+
+const endLoading = (): void => {
+  loadingLockCount = Math.max(0, loadingLockCount - 1)
+  if (loadingLockCount === 0) {
+    loadingScreen.classList.add('hidden')
+  }
+}
+
+const uiIsLocked = (): boolean => loadingLockCount > 0
 
 const readCharacterLayoutStore = (): CharacterLayoutStore => {
   try {
@@ -202,10 +230,8 @@ const persistSceneCharacters = (sceneId: string): void => {
   writeCharacterLayoutStore(store)
 }
 
-const restoreSceneCharacters = async (sceneId: string): Promise<void> => {
-  const store = readCharacterLayoutStore()
-  const states = store[sceneId] ?? []
-  await characterManager.restoreFromState(states)
+const clearAllStoredCharacterLayouts = (): void => {
+  writeCharacterLayoutStore({})
 }
 
 const setSelectedCharacter = (instanceId: string | null): void => {
@@ -309,28 +335,28 @@ if (!xrRuntime.supported) {
 }
 
 const loadScene = async (index: number): Promise<void> => {
-  try {
-    if (currentSceneId) {
-      persistSceneCharacters(currentSceneId)
-    }
+  beginLoading('Loading scene...')
 
+  try {
+    clearAllStoredCharacterLayouts()
     setSelectedCharacter(null)
     characterManager.clearCharacters()
 
     const active = await sceneManager.loadSceneByIndex(index)
     currentSceneId = active.id
 
-    await restoreSceneCharacters(active.id)
     syncActiveChip(index)
     setStatus(`Viewing ${active.title}`)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown scene loading error.'
     setStatus(`Scene load failed: ${message}`)
+  } finally {
+    endLoading()
   }
 }
 
 scene.onPointerObservable.add((pointerInfo) => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -409,7 +435,7 @@ scene.onPointerObservable.add((pointerInfo) => {
 canvas.addEventListener(
   'wheel',
   (event) => {
-    if (!selectedCharacterInstanceId || xrRuntime.inSession) {
+    if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
       return
     }
 
@@ -428,7 +454,7 @@ canvas.addEventListener(
 
 for (const characterChip of characterChips) {
   characterChip.addEventListener('click', async () => {
-    if (xrRuntime.inSession) {
+    if (xrRuntime.inSession || uiIsLocked()) {
       return
     }
 
@@ -440,6 +466,8 @@ for (const characterChip of characterChips) {
     const pointerPosition = getGroundPointerPosition()
     const fallbackPosition = new Vector3(camera.target.x, 0, camera.target.z)
 
+    beginLoading('Loading character model...')
+
     try {
       const state = await characterManager.spawnCharacter(characterId, pointerPosition ?? fallbackPosition)
       setSelectedCharacter(state.instanceId)
@@ -449,12 +477,14 @@ for (const characterChip of characterChips) {
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Failed to spawn character.'
       setStatus(message)
+    } finally {
+      endLoading()
     }
   })
 }
 
 removeCharacterButton.addEventListener('click', () => {
-  if (!selectedCharacterInstanceId || xrRuntime.inSession) {
+  if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -466,7 +496,7 @@ removeCharacterButton.addEventListener('click', () => {
 })
 
 resetCharactersButton.addEventListener('click', () => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -479,7 +509,7 @@ resetCharactersButton.addEventListener('click', () => {
 })
 
 dragModeButton.addEventListener('click', () => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -502,35 +532,35 @@ const setGizmoMode = (mode: GizmoMode): void => {
 }
 
 gizmoOffButton.addEventListener('click', () => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
   setGizmoMode('off')
 })
 
 gizmoMoveButton.addEventListener('click', () => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
   setGizmoMode('move')
 })
 
 gizmoRotateButton.addEventListener('click', () => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
   setGizmoMode('rotate')
 })
 
 gizmoScaleButton.addEventListener('click', () => {
-  if (xrRuntime.inSession) {
+  if (xrRuntime.inSession || uiIsLocked()) {
     return
   }
   setGizmoMode('scale')
 })
 
 scaleUpButton.addEventListener('click', () => {
-  if (!selectedCharacterInstanceId || xrRuntime.inSession) {
+  if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -544,7 +574,7 @@ scaleUpButton.addEventListener('click', () => {
 })
 
 scaleDownButton.addEventListener('click', () => {
-  if (!selectedCharacterInstanceId || xrRuntime.inSession) {
+  if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -558,7 +588,7 @@ scaleDownButton.addEventListener('click', () => {
 })
 
 rotateLeftButton.addEventListener('click', () => {
-  if (!selectedCharacterInstanceId || xrRuntime.inSession) {
+  if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -572,7 +602,7 @@ rotateLeftButton.addEventListener('click', () => {
 })
 
 rotateRightButton.addEventListener('click', () => {
-  if (!selectedCharacterInstanceId || xrRuntime.inSession) {
+  if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
@@ -587,6 +617,10 @@ rotateRightButton.addEventListener('click', () => {
 
 for (const chip of chips) {
   chip.addEventListener('click', () => {
+    if (uiIsLocked()) {
+      return
+    }
+
     const indexValue = chip.dataset.sceneIndex
     if (!indexValue) {
       return
