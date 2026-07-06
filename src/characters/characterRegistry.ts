@@ -11,7 +11,7 @@ const createCharacter = (index: number): CharacterDefinition => ({
   id: `character-${index}`,
   title: `Character ${index}`,
   fileName: `Character_${index}.glb`,
-  defaultScale: 1,
+  defaultScale: 0.72,
   minScale: 0.35,
   maxScale: 2.8,
 })

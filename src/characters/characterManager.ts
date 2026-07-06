@@ -9,6 +9,8 @@ import type { AbstractMesh } from '@babylonjs/core'
 import '@babylonjs/loaders/glTF'
 import { CHARACTER_BY_ID, type CharacterDefinition } from './characterRegistry'
 
+const MIN_CHARACTER_Y = -1.8
+
 export type CharacterInstanceState = {
   instanceId: string
   characterId: string
@@ -62,7 +64,7 @@ export class CharacterManager {
       }
     }
 
-    const normalizedPosition = new Vector3(position.x, Math.max(position.y, 0), position.z)
+    const normalizedPosition = new Vector3(position.x, Math.max(position.y, MIN_CHARACTER_Y), position.z)
     root.position.copyFrom(normalizedPosition)
     root.scaling.setAll(character.defaultScale)
 
@@ -86,7 +88,8 @@ export class CharacterManager {
       return
     }
 
-    instance.root.dispose(false, true)
+    // Keep shared cached materials alive for future instantiation.
+    instance.root.dispose(false, false)
     this.instances.delete(instanceId)
   }
 
@@ -102,7 +105,7 @@ export class CharacterManager {
       return
     }
 
-    instance.root.position.set(position.x, Math.max(position.y, 0), position.z)
+    instance.root.position.set(position.x, Math.max(position.y, MIN_CHARACTER_Y), position.z)
   }
 
   public moveCharacterByDelta(instanceId: string, delta: Vector3): void {
@@ -112,8 +115,8 @@ export class CharacterManager {
     }
 
     instance.root.position.addInPlace(delta)
-    if (instance.root.position.y < 0) {
-      instance.root.position.y = 0
+    if (instance.root.position.y < MIN_CHARACTER_Y) {
+      instance.root.position.y = MIN_CHARACTER_Y
     }
   }
 

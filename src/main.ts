@@ -3,7 +3,6 @@ import {
   ArcRotateCamera,
   Color4,
   Engine,
-  GizmoManager,
   HemisphericLight,
   MeshBuilder,
   PointerEventTypes,
@@ -21,7 +20,6 @@ const CHARACTER_LAYOUT_STORAGE_KEY = 'midsummer-night-3d-character-layout-v1'
 
 type CharacterLayoutStore = Record<string, CharacterInstanceState[]>
 type DragMode = 'ground' | 'xy'
-type GizmoMode = 'off' | 'move' | 'rotate' | 'scale'
 
 const app = document.querySelector<HTMLDivElement>('#app')
 
@@ -57,7 +55,7 @@ app.innerHTML = `
 
   <section class="hud" aria-label="Scene Controls Overlay">
     <header class="hud-head">
-      <p class="eyebrow">Midsummer Night 3D</p>
+      <p class="eyebrow">Midsummer Night's Drunk</p>
       <h1>Immersive Scene Platform</h1>
     </header>
 
@@ -71,22 +69,28 @@ app.innerHTML = `
     <p class="palette-title">Characters</p>
     <div class="character-grid">${characterButtons}</div>
     <div class="character-tools">
-      <button id="char-scale-down" class="action muted mini" type="button">Scale -</button>
-      <button id="char-scale-up" class="action muted mini" type="button">Scale +</button>
-      <button id="char-rotate-left" class="action muted mini" type="button">Rotate -</button>
-      <button id="char-rotate-right" class="action muted mini" type="button">Rotate +</button>
       <button id="char-remove" class="action muted mini" type="button">Remove</button>
       <button id="char-reset-all" class="action muted mini" type="button">Reset All</button>
     </div>
     <button id="char-drag-mode" class="action muted mini wide" type="button">Drag: Ground XZ</button>
-    <div class="gizmo-modes" aria-label="Transform Gizmo Mode">
-      <button id="gizmo-off" class="action muted mini gizmo-btn active" type="button">Off</button>
-      <button id="gizmo-move" class="action muted mini gizmo-btn" type="button">Move</button>
-      <button id="gizmo-rotate" class="action muted mini gizmo-btn" type="button">Rotate</button>
-      <button id="gizmo-scale" class="action muted mini gizmo-btn" type="button">Scale</button>
+    <p class="palette-title compact">Controls</p>
+    <div class="nudge-panel" aria-label="Game Style Transform Controls">
+      <button id="char-rotate-left" class="action muted mini nudge-side rotate-left" type="button" title="Rotate left">↺</button>
+      <button class="nudge-btn up" data-nudge="forward" type="button" title="Move forward">↑</button>
+      <button id="char-rotate-right" class="action muted mini nudge-side rotate-right" type="button" title="Rotate right">↻</button>
+      <button class="nudge-btn left" data-nudge="left" type="button" title="Move left">←</button>
+      <button class="nudge-btn center" data-nudge="center" type="button" disabled>●</button>
+      <button class="nudge-btn right" data-nudge="right" type="button" title="Move right">→</button>
+      <button id="char-scale-down" class="action muted mini nudge-side scale-down" type="button" title="Scale down">－</button>
+      <button class="nudge-btn down" data-nudge="backward" type="button" title="Move backward">↓</button>
+      <button id="char-scale-up" class="action muted mini nudge-side scale-up" type="button" title="Scale up">＋</button>
+    </div>
+    <div class="height-controls">
+      <button class="action muted mini" id="char-lift-up" type="button" title="Raise character">Lift +</button>
+      <button class="action muted mini" id="char-lift-down" type="button" title="Lower character">Lift -</button>
     </div>
     <p id="character-selected" class="palette-info">Selected: none</p>
-    <p id="character-tip" class="palette-tip">Click a character to spawn near the scene center. Drag in canvas to place. Use mouse wheel to scale. Switch to Drag XY for precise vertical adjustment. Or enable Gizmo mode for ring/axis handles.</p>
+    <p id="character-tip" class="palette-tip">Pick a character, then use arrows to move, Lift for height, Rotate and Scale for fine adjustment. Press and hold buttons for continuous movement.</p>
   </aside>
 
   <span id="status-pill" class="status">Initializing...</span>
@@ -103,11 +107,10 @@ const scaleUpButton = document.querySelector<HTMLButtonElement>('#char-scale-up'
 const scaleDownButton = document.querySelector<HTMLButtonElement>('#char-scale-down')
 const rotateLeftButton = document.querySelector<HTMLButtonElement>('#char-rotate-left')
 const rotateRightButton = document.querySelector<HTMLButtonElement>('#char-rotate-right')
+const liftUpButton = document.querySelector<HTMLButtonElement>('#char-lift-up')
+const liftDownButton = document.querySelector<HTMLButtonElement>('#char-lift-down')
 const dragModeButton = document.querySelector<HTMLButtonElement>('#char-drag-mode')
-const gizmoOffButton = document.querySelector<HTMLButtonElement>('#gizmo-off')
-const gizmoMoveButton = document.querySelector<HTMLButtonElement>('#gizmo-move')
-const gizmoRotateButton = document.querySelector<HTMLButtonElement>('#gizmo-rotate')
-const gizmoScaleButton = document.querySelector<HTMLButtonElement>('#gizmo-scale')
+const nudgeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>('.nudge-btn[data-nudge]'))
 const characterLabel = document.querySelector<HTMLParagraphElement>('#character-selected')
 const characterTip = document.querySelector<HTMLParagraphElement>('#character-tip')
 const loadingScreen = document.querySelector<HTMLDivElement>('#loading-screen')
@@ -126,11 +129,9 @@ if (
   !scaleDownButton ||
   !rotateLeftButton ||
   !rotateRightButton ||
+  !liftUpButton ||
+  !liftDownButton ||
   !dragModeButton ||
-  !gizmoOffButton ||
-  !gizmoMoveButton ||
-  !gizmoRotateButton ||
-  !gizmoScaleButton ||
   !characterLabel ||
   !characterTip ||
   !loadingScreen ||
@@ -180,15 +181,11 @@ teleportFloor.isPickable = true
 
 const sceneManager = new SceneManager(scene, camera, setStatus)
 const characterManager = new CharacterManager(scene, setStatus)
-const gizmoManager = new GizmoManager(scene)
-gizmoManager.usePointerToAttachGizmos = false
-gizmoManager.clearGizmoOnEmptyPointerEvent = false
 
 let currentSceneId: string | null = null
 let selectedCharacterInstanceId: string | null = null
 let draggingCharacterInstanceId: string | null = null
 let dragMode: DragMode = 'ground'
-let gizmoMode: GizmoMode = 'off'
 let loadingLockCount = 0
 
 const beginLoading = (message: string): void => {
@@ -247,31 +244,15 @@ const setSelectedCharacter = (instanceId: string | null): void => {
   scaleDownButton.disabled = !hasSelection
   rotateLeftButton.disabled = !hasSelection
   rotateRightButton.disabled = !hasSelection
-
-  const node = instanceId ? characterManager.getRootNode(instanceId) : null
-  gizmoManager.attachToNode(node)
+  liftUpButton.disabled = !hasSelection
+  liftDownButton.disabled = !hasSelection
+  for (const button of nudgeButtons) {
+    button.disabled = !hasSelection
+  }
 }
 
 const syncDragModeUi = (): void => {
   dragModeButton.textContent = dragMode === 'ground' ? 'Drag: Ground XZ' : 'Drag: XY'
-}
-
-const applyGizmoMode = (): void => {
-  gizmoManager.positionGizmoEnabled = gizmoMode === 'move'
-  gizmoManager.rotationGizmoEnabled = gizmoMode === 'rotate'
-  gizmoManager.scaleGizmoEnabled = gizmoMode === 'scale'
-
-  gizmoOffButton.classList.toggle('active', gizmoMode === 'off')
-  gizmoMoveButton.classList.toggle('active', gizmoMode === 'move')
-  gizmoRotateButton.classList.toggle('active', gizmoMode === 'rotate')
-  gizmoScaleButton.classList.toggle('active', gizmoMode === 'scale')
-
-  if (selectedCharacterInstanceId) {
-    const node = characterManager.getRootNode(selectedCharacterInstanceId)
-    gizmoManager.attachToNode(node)
-  } else {
-    gizmoManager.attachToNode(null)
-  }
 }
 
 const getGroundPointerPosition = (): Vector3 | null => {
@@ -282,9 +263,43 @@ const getGroundPointerPosition = (): Vector3 | null => {
   return pick.pickedPoint.clone()
 }
 
+const getDefaultCharacterSpawnPosition = (): Vector3 => {
+  const groundOrigin = new Vector3(camera.target.x, 0, camera.target.z)
+  const forwardDirection = camera.getDirection(Vector3.Forward())
+  forwardDirection.y = 0
+
+  if (forwardDirection.lengthSquared() < 0.00001) {
+    forwardDirection.set(0, 0, 1)
+  } else {
+    forwardDirection.normalize()
+  }
+
+  const rightDirection = camera.getDirection(Vector3.Right())
+  rightDirection.y = 0
+  if (rightDirection.lengthSquared() < 0.00001) {
+    rightDirection.set(1, 0, 0)
+  } else {
+    rightDirection.normalize()
+  }
+
+  const activeCharacterCount = characterManager.getSerializedState().length
+  const lane = (activeCharacterCount % 3) - 1
+  const row = Math.floor(activeCharacterCount / 3)
+
+  const baseDistance = Math.max(camera.radius * 10, 1.9)
+  const laneSpacing = Math.max(camera.radius * 2.4, 0.45)
+  const rowSpacing = Math.max(camera.radius * 2.1, 0.4)
+
+  const depthOffset = baseDistance + row * rowSpacing
+  const sideOffset = lane * laneSpacing
+
+  return groundOrigin
+    .add(forwardDirection.scale(depthOffset))
+    .add(rightDirection.scale(sideOffset))
+}
+
 setSelectedCharacter(null)
 syncDragModeUi()
-applyGizmoMode()
 
 const updateVrButtonState = (inSession: boolean): void => {
   toggleVrButton.textContent = inSession ? 'Exit VR' : 'Enter VR'
@@ -300,23 +315,17 @@ const updateVrButtonState = (inSession: boolean): void => {
   scaleDownButton.disabled = locked || !selectedCharacterInstanceId
   rotateLeftButton.disabled = locked || !selectedCharacterInstanceId
   rotateRightButton.disabled = locked || !selectedCharacterInstanceId
-  dragModeButton.disabled = locked
-  gizmoOffButton.disabled = locked
-  gizmoMoveButton.disabled = locked
-  gizmoRotateButton.disabled = locked
-  gizmoScaleButton.disabled = locked
-  resetCharactersButton.disabled = locked
-
-  if (locked) {
-    gizmoManager.attachToNode(null)
-  } else if (selectedCharacterInstanceId) {
-    const node = characterManager.getRootNode(selectedCharacterInstanceId)
-    gizmoManager.attachToNode(node)
+  liftUpButton.disabled = locked || !selectedCharacterInstanceId
+  liftDownButton.disabled = locked || !selectedCharacterInstanceId
+  for (const button of nudgeButtons) {
+    button.disabled = locked || !selectedCharacterInstanceId
   }
+  dragModeButton.disabled = locked
+  resetCharactersButton.disabled = locked
 
   characterTip.textContent = locked
     ? 'Character editing is paused during immersive session.'
-    : 'Click a character to spawn near the scene center. Drag in canvas to place. Use mouse wheel to scale. Switch to Drag XY for precise vertical adjustment. Or enable Gizmo mode for ring/axis handles.'
+    : 'Pick a character, then use arrows to move, Lift for height, Rotate and Scale for fine adjustment. Press and hold buttons for continuous movement.'
 }
 
 const xrRuntime = await createXrRuntime({
@@ -374,9 +383,6 @@ scene.onPointerObservable.add((pointerInfo) => {
 
     const instanceId = characterManager.getCharacterInstanceIdFromMesh(pickedMesh as AbstractMesh)
     if (!instanceId) {
-      if (gizmoMode !== 'off') {
-        return
-      }
       setSelectedCharacter(null)
       return
     }
@@ -387,10 +393,6 @@ scene.onPointerObservable.add((pointerInfo) => {
   }
 
   if (pointerInfo.type === PointerEventTypes.POINTERMOVE && draggingCharacterInstanceId) {
-    if (gizmoMode !== 'off') {
-      return
-    }
-
     if (dragMode === 'ground') {
       const target = getGroundPointerPosition()
       if (!target) {
@@ -422,13 +424,6 @@ scene.onPointerObservable.add((pointerInfo) => {
       persistSceneCharacters(currentSceneId)
     }
     draggingCharacterInstanceId = null
-    return
-  }
-
-  if (pointerInfo.type === PointerEventTypes.POINTERUP && gizmoMode !== 'off' && selectedCharacterInstanceId) {
-    if (currentSceneId) {
-      persistSceneCharacters(currentSceneId)
-    }
   }
 })
 
@@ -463,13 +458,12 @@ for (const characterChip of characterChips) {
       return
     }
 
-    const pointerPosition = getGroundPointerPosition()
-    const fallbackPosition = new Vector3(camera.target.x, 0, camera.target.z)
+    const spawnPosition = getDefaultCharacterSpawnPosition()
 
     beginLoading('Loading character model...')
 
     try {
-      const state = await characterManager.spawnCharacter(characterId, pointerPosition ?? fallbackPosition)
+      const state = await characterManager.spawnCharacter(characterId, spawnPosition)
       setSelectedCharacter(state.instanceId)
       if (currentSceneId) {
         persistSceneCharacters(currentSceneId)
@@ -518,46 +512,114 @@ dragModeButton.addEventListener('click', () => {
   setStatus(dragMode === 'ground' ? 'Drag mode set to ground XZ.' : 'Drag mode set to XY.')
 })
 
-const setGizmoMode = (mode: GizmoMode): void => {
-  gizmoMode = mode
-  applyGizmoMode()
-
-  if (mode === 'off') {
-    setStatus('Transform gizmo disabled.')
+const nudgeSelectedCharacter = (kind: string): void => {
+  if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
     return
   }
 
-  const label = mode === 'move' ? 'Move' : mode === 'rotate' ? 'Rotate' : 'Scale'
-  setStatus(`Transform gizmo: ${label}.`)
+  const planarStep = Math.max(camera.radius * 0.035, 0.025)
+  const verticalStep = Math.max(camera.radius * 0.03, 0.02)
+  const liftDownStep = verticalStep * 1.6
+
+  const forwardDirection = camera.getDirection(Vector3.Forward())
+  forwardDirection.y = 0
+  if (forwardDirection.lengthSquared() > 0.00001) {
+    forwardDirection.normalize()
+  }
+
+  const rightDirection = camera.getDirection(Vector3.Right())
+  rightDirection.y = 0
+  if (rightDirection.lengthSquared() > 0.00001) {
+    rightDirection.normalize()
+  }
+
+  let delta = Vector3.Zero()
+  if (kind === 'forward') {
+    delta = forwardDirection.scale(planarStep)
+  } else if (kind === 'backward') {
+    delta = forwardDirection.scale(-planarStep)
+  } else if (kind === 'left') {
+    delta = rightDirection.scale(-planarStep)
+  } else if (kind === 'right') {
+    delta = rightDirection.scale(planarStep)
+  } else if (kind === 'liftUp') {
+    delta = new Vector3(0, verticalStep, 0)
+  } else if (kind === 'liftDown') {
+    delta = new Vector3(0, -liftDownStep, 0)
+  }
+
+  if (delta.lengthSquared() === 0) {
+    return
+  }
+
+  characterManager.moveCharacterByDelta(selectedCharacterInstanceId, delta)
+  if (currentSceneId) {
+    persistSceneCharacters(currentSceneId)
+  }
 }
 
-gizmoOffButton.addEventListener('click', () => {
-  if (xrRuntime.inSession || uiIsLocked()) {
+let nudgeIntervalId: ReturnType<typeof setInterval> | null = null
+
+const beginNudge = (kind: string): void => {
+  nudgeSelectedCharacter(kind)
+
+  if (nudgeIntervalId) {
+    clearInterval(nudgeIntervalId)
+  }
+  nudgeIntervalId = setInterval(() => {
+    nudgeSelectedCharacter(kind)
+  }, 95)
+}
+
+const stopNudge = (): void => {
+  if (!nudgeIntervalId) {
     return
   }
-  setGizmoMode('off')
+  clearInterval(nudgeIntervalId)
+  nudgeIntervalId = null
+}
+
+for (const button of nudgeButtons) {
+  const kind = button.dataset.nudge
+  if (!kind) {
+    continue
+  }
+
+  button.addEventListener('pointerdown', (event) => {
+    if (button.disabled) {
+      return
+    }
+    event.preventDefault()
+    beginNudge(kind)
+  })
+
+  button.addEventListener('pointerup', stopNudge)
+  button.addEventListener('pointercancel', stopNudge)
+  button.addEventListener('pointerleave', stopNudge)
+}
+
+liftUpButton.addEventListener('pointerdown', (event) => {
+  if (liftUpButton.disabled) {
+    return
+  }
+  event.preventDefault()
+  beginNudge('liftUp')
 })
 
-gizmoMoveButton.addEventListener('click', () => {
-  if (xrRuntime.inSession || uiIsLocked()) {
+liftDownButton.addEventListener('pointerdown', (event) => {
+  if (liftDownButton.disabled) {
     return
   }
-  setGizmoMode('move')
+  event.preventDefault()
+  beginNudge('liftDown')
 })
 
-gizmoRotateButton.addEventListener('click', () => {
-  if (xrRuntime.inSession || uiIsLocked()) {
-    return
-  }
-  setGizmoMode('rotate')
-})
-
-gizmoScaleButton.addEventListener('click', () => {
-  if (xrRuntime.inSession || uiIsLocked()) {
-    return
-  }
-  setGizmoMode('scale')
-})
+liftUpButton.addEventListener('pointerup', stopNudge)
+liftUpButton.addEventListener('pointercancel', stopNudge)
+liftUpButton.addEventListener('pointerleave', stopNudge)
+liftDownButton.addEventListener('pointerup', stopNudge)
+liftDownButton.addEventListener('pointercancel', stopNudge)
+liftDownButton.addEventListener('pointerleave', stopNudge)
 
 scaleUpButton.addEventListener('click', () => {
   if (!selectedCharacterInstanceId || xrRuntime.inSession || uiIsLocked()) {
