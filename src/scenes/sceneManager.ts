@@ -14,11 +14,14 @@ type FramingData = {
   insideRadius: number
   alpha: number
   beta: number
+  fov: number
 }
 
 const INSIDE_RADIUS_FACTOR = 0.018
 const MIN_INSIDE_RADIUS = 0.08
 const MAX_INSIDE_RADIUS = 0.35
+const BASE_FOV = 0.8
+const MAX_FOV = 2.0
 
 export class SceneManager {
   private readonly scene: Scene
@@ -162,20 +165,25 @@ export class SceneManager {
         insideRadius: 0.2,
         alpha: definition.startView?.alpha ?? Math.PI / 2,
         beta: definition.startView?.beta ?? Math.PI / 2.4,
+        fov: Math.min(BASE_FOV * (definition.startView?.zoom ?? 1), MAX_FOV),
       }
     }
 
     const center = min.add(max).scale(0.5)
     const diagonalLength = Vector3.Distance(min, max)
 
+    const baseInsideRadius = Math.min(
+      Math.max(diagonalLength * INSIDE_RADIUS_FACTOR, MIN_INSIDE_RADIUS),
+      MAX_INSIDE_RADIUS,
+    )
+    const zoomFactor = definition.startView?.zoom ?? 1
+
     return {
       center,
-      insideRadius: Math.min(
-        Math.max(diagonalLength * INSIDE_RADIUS_FACTOR, MIN_INSIDE_RADIUS),
-        MAX_INSIDE_RADIUS,
-      ),
+      insideRadius: baseInsideRadius,
       alpha: definition.startView?.alpha ?? Math.PI / 2,
       beta: definition.startView?.beta ?? Math.PI / 2.4,
+      fov: Math.min(BASE_FOV * zoomFactor, MAX_FOV),
     }
   }
 
@@ -184,5 +192,6 @@ export class SceneManager {
     this.camera.radius = framing.insideRadius
     this.camera.alpha = framing.alpha
     this.camera.beta = framing.beta
+    this.camera.fov = framing.fov
   }
 }
