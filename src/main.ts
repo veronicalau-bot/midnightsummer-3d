@@ -27,10 +27,10 @@ if (!app) {
   throw new Error('App root not found.')
 }
 
-const sceneButtons = SCENES.map(
-  (scene, index) =>
-    `<button class="scene-chip" data-scene-index="${index}">${index + 1}. ${scene.title}</button>`,
-).join('')
+const sceneButtons = SCENES.map((scene, index) => {
+  const imageNumber = index + 1
+  return `<button class="scene-chip" data-scene-index="${index}"><span class="scene-chip-text">${index + 1}. ${scene.title}</span><img class="scene-thumb" src="/scenes/s${imageNumber}.png" alt="Preview for ${scene.title}" loading="lazy" draggable="false" /></button>`
+}).join('')
 
 const characterButtons = CHARACTERS.map((character) => {
   const number = character.id.split('-')[1]
@@ -98,6 +98,10 @@ app.innerHTML = `
   </aside>
 
   <span id="status-pill" class="status">Initializing...</span>
+  <p class="disclaimer">
+    Based on <em>Midsummer Night's Drunk</em> (2024), School of Drama, HKAPA. &copy; The Hong Kong Academy for Performing Arts.
+    <a href="http://lib.hkapa.edu/bib/991002340223304326" target="_blank" rel="noopener noreferrer">View the original production record</a>.
+  </p>
 </div>
 `
 
