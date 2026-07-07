@@ -32,10 +32,10 @@ const sceneButtons = SCENES.map(
     `<button class="scene-chip" data-scene-index="${index}">${index + 1}. ${scene.title}</button>`,
 ).join('')
 
-const characterButtons = CHARACTERS.map(
-  (character) =>
-    `<button class="character-chip" data-character-id="${character.id}">C${character.id.split('-')[1]}</button>`,
-).join('')
+const characterButtons = CHARACTERS.map((character) => {
+  const number = character.id.split('-')[1]
+  return `<button class="character-chip" data-character-id="${character.id}" title="C${number}" aria-label="Character ${number}"><img class="character-thumb" src="/figures/c${number}.png" alt="Character ${number} preview" loading="lazy" draggable="false" /><span class="character-chip-label">C${number}</span></button>`
+}).join('')
 
 app.innerHTML = `
 <div class="viewport-shell">
