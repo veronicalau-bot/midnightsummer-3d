@@ -51,6 +51,10 @@ app.innerHTML = `
 
   <aside class="scene-rail" aria-label="Scene Selector">
     <div class="scene-strip">${sceneButtons}</div>
+    <div class="scene-hint" aria-hidden="true">
+      <span class="mouse-icon"><span class="mouse-wheel"></span></span>
+      <span class="scene-hint-text">Drag mouse to look around</span>
+    </div>
   </aside>
 
   <section class="hud" aria-label="Scene Controls Overlay">
